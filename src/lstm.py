@@ -56,10 +56,10 @@ def texts_to_sequences(tokenizer, texts,  kind=None, maxlen=100):
 def get_keras_model(embedding_layer, seq_length, filters, embedding_dim):
     inputs = Input(shape=(seq_length,))
     embedding = embedding_layer(inputs)
-    lstm = LSTM(filters, return_sequences=True, name='lstm_layer')(embedding)
+    lstm = LSTM(filters, return_sequences=True)(embedding)
     maxpooling = GlobalMaxPool1D()(lstm)
     dense = Dense(50, activation="relu")(maxpooling)
-    outputs = Dense(units=len(LIST_CLASSES), activation='softmax')(dense)
+    outputs = Dense(units=len(LIST_CLASSES), activation='sigmoid')(dense)
     model = Model(inputs, outputs)
     return model
 
