@@ -36,7 +36,7 @@ def if_necessary_word(tokenizer, word):
 def get_tokenizer(texts):
     tokenizer = Tokenizer()
     tokenizer.fit_on_texts(texts)
-    word_index = print('Found %s unique tokens.' % len(tokenizer.word_index))
+    print('Found %s unique tokens.' % len(tokenizer.word_index))
     return tokenizer
 
 
@@ -48,12 +48,11 @@ def texts_to_sequences(tokenizer, texts,  kind=None, maxlen=100):
     else:
         # 単語に何も条件を付けないでトークン化
         tokens = tokenizer.texts_to_sequences(texts)
-    print(type(tokens))
     return pad_sequences(tokens, maxlen=maxlen)
 
 
 # %%
-def get_keras_model(embedding_layer, seq_length, filters, embedding_dim):
+def get_lstm_model(embedding_layer, seq_length, filters, embedding_dim):
     inputs = Input(shape=(seq_length,))
     embedding = embedding_layer(inputs)
     lstm = LSTM(filters, return_sequences=True)(embedding)
@@ -88,6 +87,10 @@ x_test = texts_to_sequences(tokenizer, test_comment_text, 'filtered')
 
 
 # %%
+x_train[10]
+
+
+# %%
 word2vec_model = KeyedVectors.load_word2vec_format(
     'GoogleNews-vectors-negative300.bin', binary=True, limit=500000)
 embedding_layer = word2vec_model.get_keras_embedding()
@@ -95,16 +98,17 @@ embedding_layer = word2vec_model.get_keras_embedding()
 
 # %%
 seq_length = x_train.shape[1]
-keras_model = get_keras_model(
+keras_model = get_lstm_model(
     embedding_layer, seq_length, FILTERS, EMBEDDING_DIM)
 adam = Adam(lr=1e-3)
 keras_model.compile(loss='binary_crossentropy',
                     optimizer=adam, metrics=['acc'])
-keras_model.fit(x_train, y_train, epochs=10, verbose=1,
+keras_model.fit(x_train, y_train, epochs=3, verbose=1,
                 callbacks=get_callbacks(), batch_size=1000, validation_split=0.2)
 
-prediction = model.predict(x_test, verbose=1, batch_size=1000)
+prediction = keras_model.predict(x_test, verbose=1, batch_size=1000)
 
+# %%
 submission = pd.DataFrame({'id': test["id"]})
 for i, x in enumerate(LIST_CLASSES):
     submission[x] = prediction[:, i]
