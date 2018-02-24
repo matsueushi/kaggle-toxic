@@ -1,6 +1,7 @@
 *.bin
 *.csv
 *.zip
+.DS_Storeß
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
