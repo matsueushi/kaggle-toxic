@@ -16,7 +16,7 @@ from gensim.models import KeyedVectors
 
 # %%
 FILTERS = 60
-MAXLEN = 100
+MAXLEN = 200
 LIST_CLASSES = ["toxic", "severe_toxic",
                 "obscene", "threat", "insult", "identity_hate"]
 
@@ -74,7 +74,7 @@ x_train[10]
 
 # %%
 word2vec_model = KeyedVectors.load_word2vec_format(
-    'GoogleNews-vectors-negative300.bin', binary=True, limit=500000)
+    'GoogleNews-vectors-negative300.bin', binary=True, limit=1000000)
 embedding_layer = word2vec_model.get_keras_embedding()
 
 
@@ -88,8 +88,8 @@ keras_model.compile(loss='binary_crossentropy',
 # %%
 print(x_train.shape)
 print(y_train.shape)
-keras_model.fit(x_train, y_train, epochs=5, verbose=1,
-                callbacks=get_callbacks(), batch_size=1000, validation_split=0.1)
+keras_model.fit(x_train, y_train, epochs=10, verbose=1,
+                callbacks=get_callbacks(), batch_size=1000)
 prediction = keras_model.predict(x_test, verbose=1, batch_size=1000)
 
 
