@@ -8,6 +8,7 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.utils import to_categorical
 from keras.optimizers import Adam
 
+
 from keras.layers import Input, LSTM, GlobalMaxPool1D, Dense, Dropout, Embedding
 from keras.callbacks import ModelCheckpoint, EarlyStopping
 from keras.models import Model
@@ -84,7 +85,7 @@ embedding_layer = Embedding(MAX_FEAUTURE, EMBED_SIZE)
 
 # %%
 word2vec_model = KeyedVectors.load_word2vec_format(
-    'GoogleNews-vectors-negative300.bin', binary=True, limit=1000000)
+    'GoogleNews-vectors-negative300.bin', binary=True)
 
 # %%
 embedding_layer = word2vec_model.get_keras_embedding()
@@ -98,15 +99,28 @@ keras_model.compile(loss='binary_crossentropy',
 
 
 # %%
+import h5py
 print(x_train.shape)
 print(y_train.shape)
 keras_model.fit(x_train, y_train, epochs=10, verbose=1,
                 callbacks=get_callbacks(), batch_size=1024)
+
+# %%
+keras_model.save("model_pretrained.hdf5")
+keras_model.save_weights("model_weights_pretrained.hdf5")
+
+# %%
+keras_model.load_weights("model_weights.hdf5")
+
+# %%
+keras_model.fit(x_train, y_train, epochs=15, verbose=1, initial_epoch=10,
+                callbacks=get_callbacks(), batch_size=1024, validation_split=0.1)
+
+#%%
 prediction = keras_model.predict(x_test, verbose=1, batch_size=1024)
 
 # %%
-import h5py
-keras_model.save("model.hdf5")
+
 
 # %%
 submission = pd.DataFrame({'id': test["id"]})
