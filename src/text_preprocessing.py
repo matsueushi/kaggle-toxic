@@ -12,12 +12,7 @@ STOPLIST = set(
 
 
 # %%
-train = pd.read_csv('../input/train.csv')
-test = pd.read_csv('../input/test.csv')
-
-
-# %%
-def comment_preprocessing(comment, word_counts=None, count_threshold=10):
+def comments_preprocessing(comments, word_counts=None, count_threshold=10):
     def is_necessary(s, word_counts):
         ret = (not s.isdigit()) and len(s) > 1 and s not in STOPLIST
         if word_counts == None:
@@ -27,53 +22,53 @@ def comment_preprocessing(comment, word_counts=None, count_threshold=10):
                 return ret and (word_counts[s] > count_threshold)
             else:
                 return False
-    comment = comment.replace('\'', '')
-    seq = text_to_word_sequence(remove_stopwords(comment).lower())
-    seq = [s for s in seq if is_necessary(s, word_counts)]
-    return seq
+
+    def text_preprocessing(text):
+        text = text.replace('\'', '')
+        seq = text_to_word_sequence(remove_stopwords(text).lower())
+        seq = [s for s in seq if is_necessary(s, word_counts)]
+        return seq
+
+    seqs = [text_preprocessing(text) for text in comments]
+    texts = [' '.join(s) for s in seqs]
+    texts_len = [len(s) for s in seqs]
+    return texts, texts_len
 
 
 # %%
+train = pd.read_csv('../input/train.csv')
+test = pd.read_csv('../input/test.csv')
 train_comments = train['comment_text']
+test_comments = test['comment_text']
+all_comments = train_comments.append(test_comments)
+
+
+# %%
 tokenizer = Tokenizer()
-fit_train_comments = [' '.join(comment_preprocessing(comment))
-                      for comment in train_comments]
-tokenizer.fit_on_texts(fit_train_comments)
+fit_text, _ = comments_preprocessing(all_comments)
+tokenizer.fit_on_texts(fit_text)
+
+train_text, train_len = comments_preprocessing(
+    train_comments, tokenizer.word_counts)
+test_text, test_len = comments_preprocessing(
+    test_comments, tokenizer.word_counts)
+
 
 # %%
 word_series = pd.Series(tokenizer.word_counts)
 word_series.sort_values(inplace=True)
 word_series[-50:]
 
-# %%
-prepro_train_seqs = [comment_preprocessing(comment, tokenizer.word_counts)
-                     for comment in train_comments]
-prepro_train_comments_number = [len(seq) for seq in prepro_train_seqs]
-prepro_train_comments = [' '.join(seq) for seq in prepro_train_seqs]
-
 
 # %%
-test_comments = test['comment_text']
-prepro_test_seqs = [comment_preprocessing(
-    comment, tokenizer.word_counts) for comment in test_comments]
-prepro_test_comments_number = [len(seq) for seq in prepro_test_seqs]
-prepro_test_comments = [' '.join(seq) for seq in prepro_test_seqs]
+row = ['id', 'toxic', 'severe_toxic', 'obscene', 'threat', 'insult',
+       'identity_hate', 'preprocessed_comment', 'words']
 
-
-# %%
-print(prepro_train_comments[0])
-print(prepro_test_comments[0])
-
-
-# %%
-row = ['id', 'toxic', 'severe_toxic',
-       'obscene', 'threat', 'insult', 'identity_hate', 'preprocessed_comment', 'words_number']
-
-train['preprocessed_comment'] = prepro_train_comments
-train['words_number'] = prepro_train_comments_number
-test['preprocessed_comment'] = prepro_test_comments
-test['words_number'] = prepro_test_comments_number
+train['preprocessed_comment'] = train_text
+train['words'] = train_len
+test['preprocessed_comment'] = test_text
+test['words'] = test_len
 print(train[:10])
 train[row].to_csv('../input/train_prepro.csv', index=False)
-test[['id', 'preprocessed_comment', 'words_number']].to_csv(
+test[['id', 'preprocessed_comment', 'words']].to_csv(
     '../input/test_prepro.csv', index=False)
