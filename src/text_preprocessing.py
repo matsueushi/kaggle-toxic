@@ -2,8 +2,8 @@
 # %%
 import pandas as pd
 import numpy as np
-from gensim.parsing.preprocessing import remove_stopwords
-from keras.preprocessing.text import Tokenizer, text_to_word_sequence
+from gensim.parsing.preprocessing import preprocess_string
+from keras.preprocessing.text import Tokenizer
 
 
 # %%
@@ -14,7 +14,7 @@ STOPLIST = set(
 # %%
 def comments_preprocessing(comments, word_counts=None, count_threshold=10):
     def is_necessary(s, word_counts):
-        ret = (not s.isdigit()) and len(s) > 1 and s not in STOPLIST
+        ret = (not s.isdigit()) and len(s) > 1  # and s not in STOPLIST
         if word_counts == None:
             return ret
         else:
@@ -25,7 +25,7 @@ def comments_preprocessing(comments, word_counts=None, count_threshold=10):
 
     def text_preprocessing(text):
         text = text.replace('\'', '')
-        seq = text_to_word_sequence(remove_stopwords(text).lower())
+        seq = preprocess_string(text)
         seq = [s for s in seq if is_necessary(s, word_counts)]
         return seq
 
