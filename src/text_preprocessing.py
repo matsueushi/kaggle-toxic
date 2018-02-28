@@ -55,6 +55,15 @@ test_text, test_len = comments_preprocessing(
 
 
 # %%
+# gensimのDictoryを作成
+from gensim import corpora
+from keras.preprocessing.text import text_to_word_sequence
+print(fit_text[0])
+dictionary = corpora.Dictionary([text_to_word_sequence(t) for t in fit_text])
+dictionary.save('comment_dictionary.dict')
+print(dictonary)
+
+# %%
 word_series = pd.Series(tokenizer.word_counts)
 word_series.sort_values(inplace=True)
 word_series[-50:]

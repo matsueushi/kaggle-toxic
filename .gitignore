@@ -3,6 +3,7 @@
 *.zip
 *.DS_Store
 *.hdf5
+*.dict
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
