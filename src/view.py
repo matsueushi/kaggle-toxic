@@ -25,3 +25,27 @@ test_p[:100].to_csv('../input/test_prepro_first100.csv')
 #%%
 print(train_p[:100])
 print(test_p[:100])
+
+
+# %%
+train_p.describe(include='all')
+
+
+# %%
+test_p.describe(include='all')
+
+
+# %%
+import matplotlib.pyplot as plt
+LIST_CLASSES = ['toxic', 'severe_toxic',
+                'obscene', 'threat', 'insult', 'identity_hate']
+ind = np.arange(len(LIST_CLASSES))
+fix, ax = plt.subplots()
+sum_labels = [train_p[l].sum() for l in LIST_CLASSES]
+plot_bars = plt.bar(ind, sum_labels)
+ax.set_title('Toxicity types')
+ax.set_xticks(ind)
+ax.set_xticklabels(LIST_CLASSES)
+
+
+# %%
