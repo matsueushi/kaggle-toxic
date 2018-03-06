@@ -4,11 +4,22 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from keras.preprocessing.text import text_to_word_sequence, Tokenizer
+from keras.preprocessing.sequence import pad_sequences
+from keras.layers import Input, Embedding, LSTM, GlobalMaxPool1D, Dropout, Dense
+from keras.models import Model
 from gensim.parsing.preprocessing import preprocess_string
 from gensim import corpora
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
+from sklearn.model_selection import GridSearchCV
+
+
+# %%
+COMMON_SAVE_COLUMNS = ['id', 'preprocessed_comment_text',
+                       'word_count', 'preprocessed_word_count']
+LABELS = ['toxic', 'severe_toxic',
+          'obscene', 'threat', 'insult', 'identity_hate']
 
 
 # %%
@@ -26,8 +37,6 @@ test.head()
 
 
 # %%
-LABELS = ['toxic', 'severe_toxic',
-          'obscene', 'threat', 'insult', 'identity_hate']
 ind = np.arange(len(LABELS))
 plt.style.use('bmh')
 fix, ax = plt.subplots()
@@ -108,9 +117,9 @@ for c in LABELS:
     plt.title('Top 50 word frequencies(Class=' + c + ', Negative)')
     toxic_word_list[c][:50].plot.bar()
 
+
 # %%
-COMMON_SAVE_COLUMNS = ['id', 'preprocessed_comment_text',
-                       'word_count', 'preprocessed_word_count']
+# ここまでのテキスト処理を保存
 test_save_columns = LABELS[:]
 test_save_columns.extend(COMMON_SAVE_COLUMNS)
 
@@ -121,10 +130,23 @@ test[COMMON_SAVE_COLUMNS][:100].to_csv('../input/test_prepro_first100.csv')
 
 
 # %%
+# (途中から始める場合 状態の読み込み)
+train = pd.read_csv('../input/train_prepro.csv')
+test = pd.read_csv('../input/test_prepro.csv')
+print(train.head())
+print(test.head())
+
+
+# %%
+train_preprocessed_comment = train['preprocessed_comment_text'].astype(str)
+test_preprocessed_comment = test['preprocessed_comment_text'].astype(str)
+
+
+# %%
 # TfidfVectorizer
 tfidf_vec = TfidfVectorizer(max_features=20000, min_df=2)
-train_dtm = tfidf_vec.fit_transform(train['preprocessed_comment_text'])
-test_dtm = tfidf_vec.transform(test['preprocessed_comment_text'])
+train_dtm = tfidf_vec.fit_transform(train_preprocessed_comment)
+test_dtm = tfidf_vec.transform(test_preprocessed_comment)
 
 
 # %%
@@ -133,19 +155,85 @@ print(train_dtm[0])
 
 
 # %%
-submission = pd.DataFrame(test['id'])
-logistic_reg = LogisticRegression(C=5.0)
+# logistic regression + grid search
+submission_logistic = pd.DataFrame(test['id'])
+logistic_reg = LogisticRegression()
+param_grid = {'C': [0.01, 0.5, 0.1, 1, 5, 10]}
 for c in LABELS:
     train_y = train[c]
-    logistic_reg.fit(train_dtm, train_y)
-    pred_train_y = logistic_reg.predict(train_dtm)
-    print(c, accuracy_score(train_y, pred_train_y))
-    pred_test_y = logistic_reg.predict_proba(test_dtm)[:, 1]
-    submission[c] = pred_test_y
+    grid_search = GridSearchCV(
+        logistic_reg, param_grid=param_grid, scoring='accuracy',)
+    grid_search.fit(train_dtm, train_y)
+    pred_train_y = grid_search.predict(train_dtm)
+    print(c, accuracy_score(train_y, pred_train_y),
+          'best param:', grid_search.best_params_)
+    pred_test_y = grid_search.predict_proba(test_dtm)[:, 1]
+    submission_logistic[c] = pred_test_y
 
 
 # %%
+submission_logistic.to_csv('submission_logistic_reg.csv', index=False)
 
 
 # %%
-submission.to_csv('submission_logistic_reg.csv', index=False)
+# tokenizer
+NUM_WORDS = 20000
+tokenizer = Tokenizer(num_words=NUM_WORDS)
+tokenizer.fit_on_texts(train_preprocessed_comment)
+tokenized_train = tokenizer.texts_to_sequences(train_preprocessed_comment)
+tokenized_test = tokenizer.texts_to_sequences(test_preprocessed_comment)
+print(tokenized_train[0])
+print(tokenized_test[0])
+
+
+# %%
+MAX_LEN = 200
+padded_tokenized_train = pad_sequences(tokenized_train, maxlen=MAX_LEN)
+padded_tokenized_test = pad_sequences(tokenized_test, maxlen=MAX_LEN)
+
+
+# %%
+EMBEDDING_SIZE = 128
+ip = Input(shape=(MAX_LEN,))
+x = Embedding(input_dim=NUM_WORDS, output_dim=EMBEDDING_SIZE)(ip)
+x = LSTM(units=60, return_sequences=True)(x)
+x = GlobalMaxPool1D()(x)
+x = Dropout(0.1)(x)
+x = Dense(len(LABELS), activation='sigmoid')(x)
+model = Model(inputs=ip, outputs=x)
+model.compile(loss='binary_crossentropy',
+              optimizer='adam', metrics=['accuracy'])
+model.summary()
+
+
+# %%
+train_y = train[LABELS].values
+model.fit(padded_tokenized_train, train_y, verbose=1,
+          batch_size=64, epochs=3, validation_split=0.1)
+prediction = model.predict(padded_tokenized_test, verbose=1, batch_size=64)
+
+# %%
+submission_lstm = pd.DataFrame({'id': test["id"]})
+for i, c in enumerate(LABELS):
+    submission_lstm[c] = prediction[:, i]
+submission_lstm.to_csv('./submission_lstm.csv', index=False)
+
+
+# %%
+# 二つのsubmissionの比較
+submission_logistic = pd.read_csv('submission_logistic_reg.csv')
+submission_lstm = pd.read_csv('./submission_lstm.csv')
+print(submission_logistic.head())
+print(submission_lstm.head())
+
+
+# %%
+# 二つのモデルの結果の差を見る
+diff = test[['id', 'preprocessed_comment_text']].copy()
+diff['diff_total'] = 0
+for c in LABELS:
+    diff['diff_' + c] = submission_logistic[c] - submission_lstm[c]
+    diff['diff_total'] += diff['diff_' + c].abs()
+
+diff.sort_values(by=['diff_total'], ascending=False, inplace=True)
+diff[:100]
