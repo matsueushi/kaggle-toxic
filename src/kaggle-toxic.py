@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from keras.preprocessing.text import text_to_word_sequence, Tokenizer
 from keras.preprocessing.sequence import pad_sequences
-from keras.layers import Input, Embedding, LSTM, GlobalMaxPool1D, Dropout, Dense
+from keras.layers import Input, Embedding, LSTM, GlobalMaxPool1D, Dropout, Dense, Bidirectional
 from keras.models import Model
 from gensim.parsing.preprocessing import preprocess_string
 from gensim import corpora
@@ -104,7 +104,6 @@ for c in LABELS:
     toxic_word_list[c] = get_word_list(toxic['preprocessed_comment_text'],
                                        '../input/' + c + '_negative_word_list.csv')
 
-
 # %%
 plt.figure(figsize=(15, 4))
 plt.title('Top 50 word frequencies(All)')
@@ -144,7 +143,7 @@ test_preprocessed_comment = test['preprocessed_comment_text'].astype(str)
 
 # %%
 # TfidfVectorizer
-tfidf_vec = TfidfVectorizer(max_features=20000, min_df=2)
+tfidf_vec = TfidfVectorizer(max_features=20000, min_df=2, max_df=0.5)
 train_dtm = tfidf_vec.fit_transform(train_preprocessed_comment)
 test_dtm = tfidf_vec.transform(test_preprocessed_comment)
 
@@ -195,8 +194,9 @@ padded_tokenized_test = pad_sequences(tokenized_test, maxlen=MAX_LEN)
 # %%
 EMBEDDING_SIZE = 128
 ip = Input(shape=(MAX_LEN,))
+w_count = Input(shape=(1,))  # word_count
 x = Embedding(input_dim=NUM_WORDS, output_dim=EMBEDDING_SIZE)(ip)
-x = LSTM(units=60, return_sequences=True)(x)
+x = Bidirectional(LSTM(units=64, return_sequences=True))(x)
 x = GlobalMaxPool1D()(x)
 x = Dropout(0.1)(x)
 x = Dense(len(LABELS), activation='sigmoid')(x)
@@ -209,7 +209,7 @@ model.summary()
 # %%
 train_y = train[LABELS].values
 model.fit(padded_tokenized_train, train_y, verbose=1,
-          batch_size=64, epochs=3, validation_split=0.1)
+          batch_size=64, epochs=3)  # , validation_split=0.1)
 prediction = model.predict(padded_tokenized_test, verbose=1, batch_size=64)
 
 # %%
@@ -230,10 +230,19 @@ print(submission_lstm.head())
 # %%
 # 二つのモデルの結果の差を見る
 diff = test[['id', 'preprocessed_comment_text']].copy()
+sub_ave = test[['id']].copy()
+sub_max = test[['id']].copy()
 diff['diff_total'] = 0
 for c in LABELS:
     diff['diff_' + c] = submission_logistic[c] - submission_lstm[c]
     diff['diff_total'] += diff['diff_' + c].abs()
+    sub_ave[c] = (submission_logistic[c] + submission_lstm[c]) / 2
+    sub_max[c] = pd.DataFrame(
+        [submission_logistic[c], submission_lstm[c]]).max()
+
 
 diff.sort_values(by=['diff_total'], ascending=False, inplace=True)
 diff[:100]
+
+sub_ave.to_csv('submission_average.csv', index=False)
+sub_max.to_csv('submission_maximum.csv', index=False)
