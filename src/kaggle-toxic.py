@@ -12,7 +12,9 @@ from gensim import corpora
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.decomposition import TruncatedSVD
+import xgboost as xgb
 
 
 # %%
@@ -142,6 +144,7 @@ test_preprocessed_comment = test['preprocessed_comment_text'].astype(str)
 
 
 # %%
+# Logistic Regressionここから
 # TfidfVectorizer
 tfidf_vec = TfidfVectorizer(max_features=20000, min_df=2, max_df=0.5)
 train_dtm = tfidf_vec.fit_transform(train_preprocessed_comment)
@@ -175,6 +178,73 @@ submission_logistic.to_csv('submission_logistic_reg.csv', index=False)
 
 
 # %%
+# Logistic Regressionここまで
+
+
+# %%
+# XGBoost
+# Tfidfを改めて計算(max_featuresは増やす)
+tfidf_vec = TfidfVectorizer(max_features=50000, min_df=2, max_df=0.5)
+train_dtm = tfidf_vec.fit_transform(train_preprocessed_comment)
+test_dtm = tfidf_vec.transform(test_preprocessed_comment)
+
+
+# %%
+svd = TruncatedSVD(n_components=25, n_iter=25)
+truncated_train = svd.fit_transform(train_dtm)
+truncated_test = svd.fit_transform(test_dtm)
+
+
+# %%
+print(type(truncated_train))
+print(truncated_train[0])
+
+
+# %%
+x_train, x_valid = train_test_split(truncated_train, test_size=0.2)
+print(train['toxic'])
+y_train, y_valid = train_test_split(train['toxic'], test_size=0.2)
+d_train = xgb.DMatrix(x_train, label=y_train)
+d_valid = xgb.DMatrix(x_valid, label=y_valid)
+d_test = xgb.DMatrix(truncated_test)
+
+
+# %%
+print(d_train)
+
+
+# %%
+params = {'objective': 'binary:logistic',
+          'eval_metric': 'logloss',
+          'eta': 0.3,
+          'max_depth': 6,
+          'min_child_weight': 1,
+          'subsample': 0.7,
+          'colsample_bytree': 0.7,
+          'silent': 1}
+
+# %%
+cv = xgb.cv(params, d_train, num_boost_round=200,
+            nfold=10, verbose_eval=True)
+
+
+# %%
+print(cv)
+
+
+# %%
+watchlist = [(d_train, 'train'), (d_valid, 'valid')]
+bst = xgb.train(params, d_train, num_boost_round=2000, evals=watchlist,
+                early_stopping_rounds=200, verbose_eval=25)
+
+
+# %%
+prediction = bst.predict(d_test)
+print(prediction)
+
+
+# %%
+# LSTMここから
 # tokenizer
 NUM_WORDS = 20000
 tokenizer = Tokenizer(num_words=NUM_WORDS)
@@ -217,6 +287,9 @@ submission_lstm = pd.DataFrame({'id': test["id"]})
 for i, c in enumerate(LABELS):
     submission_lstm[c] = prediction[:, i]
 submission_lstm.to_csv('./submission_lstm.csv', index=False)
+
+# %%
+# LSTMここまで
 
 
 # %%
