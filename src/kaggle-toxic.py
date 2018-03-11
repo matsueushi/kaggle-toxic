@@ -198,16 +198,12 @@ truncated_test = svd.fit_transform(test_dtm)
 # %%
 print(truncated_train.shape)
 print(truncated_train[0])
+print(train['toxic'].shape)
 print(truncated_test.shape)
 
 
 # %%
-x_train, x_valid = train_test_split(truncated_train, test_size=0.2)
-y_train, y_valid = train_test_split(train['toxic'], test_size=0.2)
-print(x_train.shape, x_valid.shape)
-print(y_train.shape, y_valid.shape)
-d_train = xgb.DMatrix(x_train, label=y_train)
-d_valid = xgb.DMatrix(x_valid, label=y_valid)
+d_train = xgb.DMatrix(truncated_train, label=train['toxic'])
 d_test = xgb.DMatrix(truncated_test)
 
 
@@ -224,15 +220,6 @@ params = {'objective': 'binary:logistic',
           'subsample': 1,
           'colsample_bytree': 1}
 cv = xgb.cv(params, d_train, num_boost_round=100, verbose_eval=True)
-
-
-# %%
-params = {'objective': 'binary:logistic',
-          'eval_metric': 'auc',
-          'max_depth': 7}
-watchlist = [(d_train, 'train'), (d_valid, 'valid')]
-booster = xgb.train(params, d_train, 2000, watchlist,
-                    early_stopping_rounds=200, verbose_eval=10)
 
 
 # %%
