@@ -14,7 +14,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.decomposition import TruncatedSVD
+from sklearn.grid_search import GridSearchCV
 import xgboost as xgb
+from xgboost.sklearn import XGBClassifier
 
 
 # %%
@@ -212,24 +214,172 @@ print(d_train)
 
 
 # %%
-params = {'objective': 'binary:logistic',
-          'eval_metric': 'auc',
-          'eta': 0.3,
-          'max_depth': 6,
-          'min_child_weight': 1,
-          'subsample': 1,
-          'colsample_bytree': 1}
-cv = xgb.cv(params, d_train, num_boost_round=100, verbose_eval=True)
+train_array = np.array(truncated_train)
+label_array = np.array(train['toxic'])
 
 
 # %%
-prediction = booster.predict_proba(d_test)
-print(prediction)
+xgb_classifier = XGBClassifier(
+    learning_rate=0.1,
+    n_estimators=1000,
+    max_depth=5,
+    min_child_weight=1,
+    gamma=0,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    objective='binary:logistic',
+    nthread=4,
+    scale_pos_weight=1)
+xgb_param = xgb_classifier.get_xgb_params()
+xgb_n_estimators = num_boost_round = xgb_classifier.get_params()[
+    'n_estimators']
+xgb_cv = xgb.cv(xgb_param, d_train, num_boost_round=xgb_n_estimators,
+                nfold=5, metrics='auc', early_stopping_rounds=50, verbose_eval=True)
+xgb_classifier.set_params(n_estimators=xgb_cv.shape[0])
+
+
+# %%
+xgb_classifier.fit(train_array, label_array, eval_metric='auc')
+proba = xgb_classifier.predict_proba(truncated_test)
+
+
+# %%
+test_param1 = {
+    'max_depth': [4, 5, 6],
+    'min_child_weight': [4, 5, 6]
+}
+grid_search1 = GridSearchCV(
+    estimator=XGBClassifier(
+        learning_rate=0.1,
+        n_estimators=300,
+        max_depth=5,
+        min_child_weight=1,
+        gamma=0,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        objective='binary:logistic',
+        nthread=4,
+        scale_pos_weight=1),
+    param_grid=test_param1,
+    scoring='roc_auc',
+    iid=False,
+    verbose=3,
+    cv=3)
+grid_search1.fit(train_array, label_array)
+
+
+# %%
+print(grid_search1.grid_scores_)
+print(grid_search1.best_params_)
+print(grid_search1.best_score_)
+
+# %%
+test_param2 = {
+    'gamma': [i / 10.0 for i in range(0, 5)]
+}
+grid_search2 = GridSearchCV(
+    estimator=XGBClassifier(
+        learning_rate=0.1,
+        n_estimators=300,
+        max_depth=grid_search1.best_params_['max_depth'],
+        min_child_weight=grid_search1.best_params_[
+            'min_child_weight'],
+        gamma=0,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        objective='binary:logistic',
+        nthread=4,
+        scale_pos_weight=1),
+    param_grid=test_param2,
+    scoring='roc_auc',
+    iid=False,
+    verbose=3,
+    cv=3)
+grid_search2.fit(train_array, label_array)
+
+# %%
+test_param2 = {
+    'gamma': [i / 10.0 for i in range(0, 5)]
+}
+grid_search2 = GridSearchCV(
+    estimator=XGBClassifier(
+        learning_rate=0.1,
+        n_estimators=300,
+        max_depth=grid_search1.best_params_['max_depth'],
+        min_child_weight=grid_search1.best_params_[
+            'min_child_weight'],
+        gamma=0,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        objective='binary:logistic',
+        nthread=4,
+        scale_pos_weight=1),
+    param_grid=test_param2,
+    scoring='roc_auc',
+    iid=False,
+    verbose=3,
+    cv=3)
+grid_search2.fit(train_array, label_array)
+
+
+# %%
+print(grid_search2.grid_scores_)
+print(grid_search2.best_params_)
+print(grid_search2.best_score_)
+
+
+# %%
+test_param3 = {
+    'subsample': [i / 10.0 for i in range(6, 10)],
+    'colsample_bytree': [i / 10.0 for i in range(6, 10)]
+}
+grid_search3 = GridSearchCV(
+    estimator=XGBClassifier(
+        learning_rate=0.1,
+        n_estimators=300,
+        max_depth=grid_search1.best_params_['max_depth'],
+        min_child_weight=grid_search1.best_params_[
+            'min_child_weight'],
+        gamma=0,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        objective='binary:logistic',
+        nthread=4,
+        scale_pos_weight=1),
+    param_grid=test_param3,
+    scoring='roc_auc',
+    iid=False,
+    verbose=3,
+    cv=3)
+grid_search3.fit(train_array, label_array)
+
+
+# %%
+print(grid_search3.grid_scores_)
+print(grid_search3.best_params_)
+print(grid_search3.best_score_)
+
+
+# %%
+xgb_classifier = XGBClassifier(
+    learning_rate=0.1,
+    n_estimators=1000,
+    max_depth=grid_search1.best_params_['max_depth'],
+    min_child_weight=grid_search1.best_params_[
+        'min_child_weight'],
+    gamma=grid_search2.best_params_['gamma'],
+    subsample=0.8,
+    colsample_bytree=0.8,
+    objective='binary:logistic',
+    nthread=4,
+    scale_pos_weight=1)
+xgb_classifier.fit(train_array, label_array, eval_metric='auc', verbose=True)
+proba = xgb_classifier.predict_proba(truncated_test)
 
 
 # %%
 submission_xgboost = pd.DataFrame({'id': test["id"]})
-submission_xgboost['toxic'] = prediction[:]
+submission_xgboost['toxic'] = proba[:]
 submission_xgboost.to_csv('./submission_xgboost.csv', index=False)
 
 
@@ -283,7 +433,7 @@ submission_lstm.to_csv('./submission_lstm.csv', index=False)
 
 
 # %%
-# 二つのsubmissionの比較
+# submissionの比較
 submission_logistic = pd.read_csv('submission_logistic_reg.csv')
 submission_lstm = pd.read_csv('./submission_lstm.csv')
 print(submission_logistic.head())
@@ -291,21 +441,17 @@ print(submission_lstm.head())
 
 
 # %%
-# 二つのモデルの結果の差を見る
-diff = test[['id', 'preprocessed_comment_text']].copy()
+# モデルの結果の差を見る
+std_dev = test[['id', 'preprocessed_comment_text']].copy()
 sub_ave = test[['id']].copy()
-sub_max = test[['id']].copy()
 diff['diff_total'] = 0
 for c in LABELS:
     diff['diff_' + c] = submission_logistic[c] - submission_lstm[c]
     diff['diff_total'] += diff['diff_' + c].abs()
     sub_ave[c] = (submission_logistic[c] + submission_lstm[c]) / 2
-    sub_max[c] = pd.DataFrame(
-        [submission_logistic[c], submission_lstm[c]]).max()
 
 
 diff.sort_values(by=['diff_total'], ascending=False, inplace=True)
 diff[:100]
 
 sub_ave.to_csv('submission_average.csv', index=False)
-sub_max.to_csv('submission_maximum.csv', index=False)
