@@ -305,9 +305,8 @@ grid_search2 = GridSearchCV(
     estimator=XGBClassifier(
         learning_rate=0.1,
         n_estimators=300,
-        max_depth=grid_search1.best_params_['max_depth'],
-        min_child_weight=grid_search1.best_params_[
-            'min_child_weight'],
+        max_depth=5,
+        min_child_weight=6,
         gamma=0,
         subsample=0.8,
         colsample_bytree=0.8,
@@ -361,25 +360,41 @@ print(grid_search3.best_score_)
 
 
 # %%
-xgb_classifier = XGBClassifier(
-    learning_rate=0.1,
-    n_estimators=1000,
-    max_depth=grid_search1.best_params_['max_depth'],
-    min_child_weight=grid_search1.best_params_[
-        'min_child_weight'],
-    gamma=grid_search2.best_params_['gamma'],
-    subsample=0.8,
-    colsample_bytree=0.8,
-    objective='binary:logistic',
-    nthread=4,
-    scale_pos_weight=1)
-xgb_classifier.fit(train_array, label_array, eval_metric='auc', verbose=True)
-proba = xgb_classifier.predict_proba(truncated_test)
+# xgb_classifier = XGBClassifier(
+#     learning_rate=0.1,
+#     n_estimators=1000,
+#     max_depth=grid_search1.best_params_['max_depth'],
+#     min_child_weight=grid_search1.best_params_[
+#         'min_child_weight'],
+#     gamma=grid_search2.best_params_['gamma'],
+#     subsample=grid_search3.best_params_['subsample'],
+#     colsample_bytree=grid_search3.best_params_['colsample_bytree'],
+#     objective='binary:logistic',
+#     scale_pos_weight=1)
 
 
 # %%
-submission_xgboost = pd.DataFrame({'id': test["id"]})
-submission_xgboost['toxic'] = proba[:]
+submission_xgboost = pd.DataFrame(test['id'])
+for c in LABELS:
+    print(c)
+    y_train = np.array(train[c])
+    xgb_classifier = XGBClassifier(
+        learning_rate=0.1,
+        n_estimators=300,
+        max_depth=5,
+        min_child_weight=6,
+        gamma=0.1,
+        subsample=0.6,
+        colsample_bytree=0.9,
+        objective='binary:logistic',
+        scale_pos_weight=1)
+    xgb_classifier.fit(train_array, y_train, eval_metric='auc', verbose=True)
+    proba = xgb_classifier.predict_proba(truncated_test)[:, 1]
+    submission_xgboost[c] = proba
+    print(c + ':finished')
+
+
+# %%
 submission_xgboost.to_csv('./submission_xgboost.csv', index=False)
 
 
@@ -436,6 +451,7 @@ submission_lstm.to_csv('./submission_lstm.csv', index=False)
 # submissionの比較
 submission_logistic = pd.read_csv('submission_logistic_reg.csv')
 submission_lstm = pd.read_csv('./submission_lstm.csv')
+submission_xgboost = pd.read_csv('./submission_xgboost.csv')
 print(submission_logistic.head())
 print(submission_lstm.head())
 
