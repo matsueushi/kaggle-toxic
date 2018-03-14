@@ -148,7 +148,7 @@ test_preprocessed_comment = test['preprocessed_comment_text'].astype(str)
 # %%
 # Logistic Regressionここから
 # TfidfVectorizer
-tfidf_vec = TfidfVectorizer(max_features=20000, min_df=2, max_df=0.5)
+tfidf_vec = TfidfVectorizer(max_features=50000, min_df=2, max_df=0.5)
 train_dtm = tfidf_vec.fit_transform(train_preprocessed_comment)
 test_dtm = tfidf_vec.transform(test_preprocessed_comment)
 
@@ -192,206 +192,65 @@ test_dtm = tfidf_vec.transform(test_preprocessed_comment)
 
 
 # %%
-svd = TruncatedSVD(n_components=25, n_iter=30)
-truncated_train = svd.fit_transform(train_dtm)
-truncated_test = svd.fit_transform(test_dtm)
-
-
-# %%
-print(truncated_train.shape)
-print(truncated_train[0])
-print(train['toxic'].shape)
-print(truncated_test.shape)
-
-
-# %%
-d_train = xgb.DMatrix(truncated_train, label=train['toxic'])
-d_test = xgb.DMatrix(truncated_test)
-
-
-# %%
-print(d_train)
-
-
-# %%
-train_array = np.array(truncated_train)
-label_array = np.array(train['toxic'])
-
-
-# %%
-xgb_classifier = XGBClassifier(
-    learning_rate=0.1,
-    n_estimators=1000,
-    max_depth=5,
-    min_child_weight=1,
-    gamma=0,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    objective='binary:logistic',
-    nthread=4,
-    scale_pos_weight=1)
-xgb_param = xgb_classifier.get_xgb_params()
-xgb_n_estimators = num_boost_round = xgb_classifier.get_params()[
-    'n_estimators']
-xgb_cv = xgb.cv(xgb_param, d_train, num_boost_round=xgb_n_estimators,
-                nfold=5, metrics='auc', early_stopping_rounds=50, verbose_eval=True)
-xgb_classifier.set_params(n_estimators=xgb_cv.shape[0])
-
-
-# %%
-xgb_classifier.fit(train_array, label_array, eval_metric='auc')
-proba = xgb_classifier.predict_proba(truncated_test)
-
-
-# %%
-test_param1 = {
-    'max_depth': [4, 5, 6],
-    'min_child_weight': [4, 5, 6]
+params = {
+    'objective': 'binary:logistic',
+    'eta': 0.1,
+    'max_depth': 5,
+    'silence': 1,
+    'eval_metric': 'auc',
+    'min_child_weight': 1,
+    'subsample': 0.8,
+    'colsample_bytree': 0.8,
 }
-grid_search1 = GridSearchCV(
-    estimator=XGBClassifier(
-        learning_rate=0.1,
-        n_estimators=300,
-        max_depth=5,
-        min_child_weight=1,
-        gamma=0,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        objective='binary:logistic',
-        nthread=4,
-        scale_pos_weight=1),
-    param_grid=test_param1,
-    scoring='roc_auc',
-    iid=False,
-    verbose=3,
-    cv=3)
-grid_search1.fit(train_array, label_array)
-
-
-# %%
-print(grid_search1.grid_scores_)
-print(grid_search1.best_params_)
-print(grid_search1.best_score_)
-
-# %%
-test_param2 = {
-    'gamma': [i / 10.0 for i in range(0, 5)]
-}
-grid_search2 = GridSearchCV(
-    estimator=XGBClassifier(
-        learning_rate=0.1,
-        n_estimators=300,
-        max_depth=grid_search1.best_params_['max_depth'],
-        min_child_weight=grid_search1.best_params_[
-            'min_child_weight'],
-        gamma=0,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        objective='binary:logistic',
-        nthread=4,
-        scale_pos_weight=1),
-    param_grid=test_param2,
-    scoring='roc_auc',
-    iid=False,
-    verbose=3,
-    cv=3)
-grid_search2.fit(train_array, label_array)
-
-# %%
-test_param2 = {
-    'gamma': [i / 10.0 for i in range(0, 5)]
-}
-grid_search2 = GridSearchCV(
-    estimator=XGBClassifier(
-        learning_rate=0.1,
-        n_estimators=300,
-        max_depth=5,
-        min_child_weight=6,
-        gamma=0,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        objective='binary:logistic',
-        nthread=4,
-        scale_pos_weight=1),
-    param_grid=test_param2,
-    scoring='roc_auc',
-    iid=False,
-    verbose=3,
-    cv=3)
-grid_search2.fit(train_array, label_array)
-
-
-# %%
-print(grid_search2.grid_scores_)
-print(grid_search2.best_params_)
-print(grid_search2.best_score_)
-
-
-# %%
-test_param3 = {
-    'subsample': [i / 10.0 for i in range(6, 10)],
-    'colsample_bytree': [i / 10.0 for i in range(6, 10)]
-}
-grid_search3 = GridSearchCV(
-    estimator=XGBClassifier(
-        learning_rate=0.1,
-        n_estimators=300,
-        max_depth=grid_search1.best_params_['max_depth'],
-        min_child_weight=grid_search1.best_params_[
-            'min_child_weight'],
-        gamma=0,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        objective='binary:logistic',
-        nthread=4,
-        scale_pos_weight=1),
-    param_grid=test_param3,
-    scoring='roc_auc',
-    iid=False,
-    verbose=3,
-    cv=3)
-grid_search3.fit(train_array, label_array)
-
-
-# %%
-print(grid_search3.grid_scores_)
-print(grid_search3.best_params_)
-print(grid_search3.best_score_)
-
-
-# %%
-# xgb_classifier = XGBClassifier(
-#     learning_rate=0.1,
-#     n_estimators=1000,
-#     max_depth=grid_search1.best_params_['max_depth'],
-#     min_child_weight=grid_search1.best_params_[
-#         'min_child_weight'],
-#     gamma=grid_search2.best_params_['gamma'],
-#     subsample=grid_search3.best_params_['subsample'],
-#     colsample_bytree=grid_search3.best_params_['colsample_bytree'],
-#     objective='binary:logistic',
-#     scale_pos_weight=1)
-
-
-# %%
 submission_xgboost = pd.DataFrame(test['id'])
+d_test = xgb.DMatrix(test_dtm)
+print(d_test)
 for c in LABELS:
     print(c)
-    y_train = np.array(train[c])
-    xgb_classifier = XGBClassifier(
-        learning_rate=0.1,
-        n_estimators=300,
-        max_depth=5,
-        min_child_weight=6,
-        gamma=0.1,
-        subsample=0.6,
-        colsample_bytree=0.9,
-        objective='binary:logistic',
-        scale_pos_weight=1)
-    xgb_classifier.fit(train_array, y_train, eval_metric='auc', verbose=True)
-    proba = xgb_classifier.predict_proba(truncated_test)[:, 1]
-    submission_xgboost[c] = proba
-    print(c + ':finished')
+    d_train = xgb.DMatrix(train_dtm, label=train[c])
+    print(d_train)
+    model = xgb.train(params, d_train,  num_boost_round=500)
+    prediction = model.predict(d_test)
+    print(prediction[:5])
+    submission_xgboost[c] = model.predict(d_test)
+
+# %%
+# svd = TruncatedSVD(n_components=25, n_iter=30)
+# truncated_train = svd.fit_transform(train_dtm)
+# truncated_test = svd.fit_transform(test_dtm)
+
+
+# %%
+# print(truncated_train.shape)
+# print(truncated_train[0])
+# print(train['toxic'].shape)
+# print(truncated_test.shape)
+
+
+# %%
+# d_train = xgb.DMatrix(truncated_train, label=train['toxic'])
+# d_test = xgb.DMatrix(truncated_test)
+
+
+# %%
+# submission_xgboost = pd.DataFrame(test['id'])
+# for c in LABELS:
+#     print(c)
+#     y_train = np.array(train[c])
+#     xgb_classifier = XGBClassifier(
+#         learning_rate=0.1,
+#         n_estimators=300,
+#         max_depth=5,
+#         min_child_weight=6,
+#         gamma=0.1,
+#         subsample=0.6,
+#         colsample_bytree=0.9,
+#         objective='binary:logistic',
+#         scale_pos_weight=1)
+#     xgb_classifier.fit(train_array, y_train, eval_metric='auc', verbose=True)
+#     proba = xgb_classifier.predict_proba(truncated_test)[:, 1]
+#     submission_xgboost[c] = proba
+#     print(c + ':finished')
 
 
 # %%
@@ -434,7 +293,7 @@ model.summary()
 # %%
 train_y = train[LABELS].values
 model.fit(padded_tokenized_train, train_y, verbose=1,
-          batch_size=64, epochs=3)  # , validation_split=0.1)
+          batch_size=64, epochs=4)  # , validation_split=0.1)
 prediction = model.predict(padded_tokenized_test, verbose=1, batch_size=64)
 
 # %%
@@ -454,20 +313,15 @@ submission_lstm = pd.read_csv('./submission_lstm.csv')
 submission_xgboost = pd.read_csv('./submission_xgboost.csv')
 print(submission_logistic.head())
 print(submission_lstm.head())
+print(submission_xgboost.head())
 
 
 # %%
 # モデルの結果の差を見る
 std_dev = test[['id', 'preprocessed_comment_text']].copy()
 sub_ave = test[['id']].copy()
-diff['diff_total'] = 0
 for c in LABELS:
-    diff['diff_' + c] = submission_logistic[c] - submission_lstm[c]
-    diff['diff_total'] += diff['diff_' + c].abs()
-    sub_ave[c] = (submission_logistic[c] + submission_lstm[c]) / 2
-
-
-diff.sort_values(by=['diff_total'], ascending=False, inplace=True)
-diff[:100]
+    sub_ave[c] = (submission_logistic[c] + submission_lstm[c] +
+                  submission_xgboost[c]) / 3.0
 
 sub_ave.to_csv('submission_average.csv', index=False)
