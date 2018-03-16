@@ -42,31 +42,4 @@ for out in outputs:
 
 
 # %%
-print(std_dev.sort_values(by=['threat_stddev']))
-
-
-# %%
-modified_ave = test[['id']].copy()
-threshold = 0.15
-for c in LABELS:
-    ambiguous_label = std_dev[c + '_stddev'] > threshold
-    modified_ave[c] = 0
-    modified_ave.loc[~ambiguous_label, c] = sub_ave.loc[~ambiguous_label, c]
-    for out in outputs:
-        modified_ave.loc[ambiguous_label, c] = np.maximum(
-            modified_ave.loc[ambiguous_label, c], out.loc[ambiguous_label, c])
-    print(c, ambiguous_label.sum())
-modified_ave.to_csv('../modified_average.csv', index=False)
-
-# %%
-print(modified_ave.head())
-
-# %%
-modified_diff = modified_ave.copy()
-modified_diff['preprocessed_comment_text'] = test['preprocessed_comment_text']
-for c in LABELS:
-    modified_diff[c] -= sub_ave[c]
-
-# %%
-for c in LABELS:
-    print(modified_diff.sort_values(by=[c], ascending=False))
+print(std_dev.sort_values(by=['toxic_stddev']))

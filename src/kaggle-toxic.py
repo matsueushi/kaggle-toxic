@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from keras.preprocessing.text import text_to_word_sequence, Tokenizer
 from keras.preprocessing.sequence import pad_sequences
-from keras.layers import Input, Embedding, LSTM, GlobalMaxPool1D, Dropout, Dense, Bidirectional
+from keras.layers import Input, Embedding, LSTM, GlobalMaxPool1D, GlobalAveragePooling1D, Dropout, Dense, Bidirectional, concatenate, GRU
 from keras.models import Model
 from gensim.parsing.preprocessing import preprocess_string
 from gensim import corpora
@@ -119,6 +119,32 @@ for c in LABELS:
     plt.figure(figsize=(15, 4))
     plt.title('Top 50 word frequencies(Class=' + c + ', Negative)')
     toxic_word_list[c][:50].plot.bar()
+
+
+# %%
+for c in LABELS:
+    not_toxic = train[train[c] == 0]
+    toxic = train[train[c] == 1]
+    not_tokenizer = Tokenizer()
+    not_toxic_word_list[c] = not_tokenizer.fit_on_texts(
+        not_toxic['preprocessed_comment_text'])
+    not_dic = pd.Series(not_tokenizer.word_docs)
+    not_dic /= len(not_toxic)
+    print(not_dic.sort_values())
+    tokenizer = Tokenizer()
+    toxic_word_list[c] = tokenizer.fit_on_texts(
+        toxic['preprocessed_comment_text'])
+    dic = pd.Series(tokenizer.word_docs)
+    dic /= len(toxic)
+    print(dic.sort_values())
+
+
+# %%
+train['preprocessed_comment_text'].head()
+
+
+# %%
+test['preprocessed_comment_text'].head()
 
 
 # %%
@@ -260,7 +286,7 @@ submission_xgboost.to_csv('./submission_xgboost.csv', index=False)
 # %%
 # LSTMここから
 # tokenizer
-NUM_WORDS = 20000
+NUM_WORDS = 30000
 tokenizer = Tokenizer(num_words=NUM_WORDS)
 tokenizer.fit_on_texts(train_preprocessed_comment)
 tokenized_train = tokenizer.texts_to_sequences(train_preprocessed_comment)
@@ -270,19 +296,19 @@ print(tokenized_test[0])
 
 
 # %%
-MAX_LEN = 200
+MAX_LEN = 150
 padded_tokenized_train = pad_sequences(tokenized_train, maxlen=MAX_LEN)
 padded_tokenized_test = pad_sequences(tokenized_test, maxlen=MAX_LEN)
 
 
 # %%
-EMBEDDING_SIZE = 128
+EMBEDDING_SIZE = 200
 ip = Input(shape=(MAX_LEN,))
 w_count = Input(shape=(1,))  # word_count
 x = Embedding(input_dim=NUM_WORDS, output_dim=EMBEDDING_SIZE)(ip)
-x = Bidirectional(LSTM(units=64, return_sequences=True))(x)
-x = GlobalMaxPool1D()(x)
-x = Dropout(0.1)(x)
+x = Bidirectional(GRU(units=64, dropout=0.15,
+                      recurrent_dropout=0.15, return_sequences=True))(x)
+x = concatenate([GlobalMaxPool1D()(x), GlobalAveragePooling1D()(x)])
 x = Dense(len(LABELS), activation='sigmoid')(x)
 model = Model(inputs=ip, outputs=x)
 model.compile(loss='binary_crossentropy',
@@ -293,14 +319,15 @@ model.summary()
 # %%
 train_y = train[LABELS].values
 model.fit(padded_tokenized_train, train_y, verbose=1,
-          batch_size=64, epochs=4)  # , validation_split=0.1)
+          batch_size=64, epochs=3)  # , validation_split=0.1)
 prediction = model.predict(padded_tokenized_test, verbose=1, batch_size=64)
+
 
 # %%
 submission_lstm = pd.DataFrame({'id': test["id"]})
 for i, c in enumerate(LABELS):
     submission_lstm[c] = prediction[:, i]
-submission_lstm.to_csv('./submission_lstm.csv', index=False)
+submission_lstm.to_csv('./submission_gru.csv', index=False)
 
 # %%
 # LSTMここまで
